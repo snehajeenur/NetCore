@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetCore | Network Stack Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body class="bg-slate-900 text-white font-sans">
+
+    <!-- Navigation Bar -->
+    <nav class="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-blue-400">🛡️ NetCore <span class="text-slate-400 text-sm font-normal">TCP/IP Visualizer</span></h1>
+        <div class="space-x-2">
+            <button onclick="trigger('routing')" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-sm transition font-medium">Simulate Routing</button>
+            <button onclick="trigger('attack')" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded text-sm transition font-medium">Simulate Attack</button>
+            <button onclick="clearLogs()" class="bg-slate-600 hover:bg-slate-500 px-4 py-2 rounded text-sm transition font-medium">Clear Logs</button>
+        </div>
+    </nav>
+
+    <div class="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Left Column: Stats and Alerts -->
+        <div class="lg:col-span-1 space-y-6">
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-xl">
+                <p class="text-slate-400 text-xs uppercase tracking-wider">Total Packets</p>
+                <h2 id="total-packets" class="text-4xl font-bold text-white">0</h2>
+            </div>
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-xl">
+                <p class="text-slate-400 text-xs uppercase tracking-wider">Security Alerts</p>
+                <h2 id="total-alerts" class="text-4xl font-bold text-red-500">0</h2>
+            </div>
+            
+            <!-- Alerts Panel -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-xl">
+                <h3 class="text-lg font-semibold mb-4 border-b border-slate-700 pb-2 flex items-center">
+                    <span class="mr-2">🚨</span> Active Alerts
+                </h3>
+                <div id="alerts-list" class="space-y-2 text-sm">
+                    <p class="text-slate-500 italic">No threats detected...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Packet Inspector -->
+        <div class="lg:col-span-2 bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-xl">
+            <h3 class="text-lg font-semibold mb-4 border-b border-slate-700 pb-2 flex items-center">
+                <span class="mr-2">📦</span> Live Packet Inspector
+            </h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="text-slate-400 border-b border-slate-700">
+                        <tr>
+                            <th class="py-3 px-2">Source IP</th>
+                            <th class="py-3 px-2">Dest IP</th>
+                            <th class="py-3 px-2">Proto</th>
+                            <th class="py-3 px-2">L4 Detail</th>
+                            <th class="py-3 px-2">Payload</th>
+                        </tr>
+                    </thead>
+                    <tbody id="packet-table">
+                        <!-- Real-time packets inserted here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize WebSocket connection
+        const socket = io();
+
+        // --- REAL-TIME PACKET LISTENER ---
+        socket.on('new_packet', function(p) {
+            // 1. Update Total Packets count
+            const countEl = document.getElementById('total-packets');
+            countEl.innerText = parseInt(countEl.innerText) + 1;
+
+            // 2. Insert packet into table (Top)
+            const table = document.getElementById('packet-table');
+            const row = `
+                <tr class="border-b border-slate-700 bg-blue-900/20 hover:bg-slate-700/50 transition">
+                    <td class="py-2 px-2">${p.l3 ? p.l3.src : 'N/A'}</td>
+                    <td class="py-2 px-2">${p.l3 ? p.l3.dst : 'N/A'}</td>
+                    <td class="py-2 px-2">${p.l3 ? p.l3.proto : 'N/A'}</td>
+                    <td class="py-2 px-2">${p.l4 ? p.l4.type + ':' + p.l4.dst_port : 'N/A'}</td>
+                    <td class="py-2 px-2 text-slate-400 font-mono">${p.payload || ''}</td>
+                </tr>`;
+            table.insertAdjacentHTML('afterbegin', row);
+        });
+
+        // --- REAL-TIME ALERT LISTENER ---
+        socket.on('new_alert', function(msg) {
+            // 1. Update Alert Counter
+            const alertCountEl = document.getElementById('total-alerts');
+            alertCountEl.innerText = parseInt(alertCountEl.innerText) + 1;
+
+            // 2. Add alert box to the list
+            const alertList = document.getElementById('alerts-list');
+            const alertHtml = `<div class="p-2 bg-red-900/30 border border-red-800 text-red-300 rounded animate-pulse font-medium">${msg}</div>`;
+            
+            // Remove "No threats detected" if it's the first alert
+            if(alertList.innerText.includes("No threats detected")) {
+                alertList.innerHTML = "";
+            }
+            
+            alertList.insertAdjacentHTML('afterbegin', alertHtml);
+        });
+
+        async function trigger(type) {
+            await fetch(`/api/simulate/${type}`);
+        }
+
+        async function clearLogs() {
+            await fetch('/api/clear');
+            location.reload(); // Refresh to reset UI state
+        }
+
+        // Slow polling for general stats backup
+        setInterval(async () => {
+            try {
+                const res = await fetch('/api/stats');
+                const stats = await res.json();
+                document.getElementById('total-alerts').innerText = stats.alerts.length;
+            } catch (e) {}
+        }, 5000);
+    </script>
+</body>
+</html>
