@@ -39,5 +39,5 @@ A modern web interface built with Flask, Socket.io, and Tailwind CSS that allows
 
 1. Clone the repository:
    bash
-   git clone https://github.com/YOUR_USERNAME/NetCore.git
+   git clone [https://github.com/YOUR_USERNAME/NetCore.git](https://github.com/snehajeenur/NetCore.git)
    cd NetCore
